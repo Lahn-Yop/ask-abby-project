@@ -1,0 +1,82 @@
+---
+title: "R Notebook"
+output: 
+  html_notebook: 
+    theme: readable
+---
+
+# Setup
+
+```{r setup, results='hide'}
+pacman::p_load(tidyverse, tidytext)
+```
+
+```{r data-pull}
+data_url <- "https://raw.githubusercontent.com/the-pudding/data/master/dearabby/raw_da_qs.csv"
+
+da_data <- read_csv(data_url, col_types = list(col_double(),
+                                               col_double(),
+                                               col_character(),
+                                               col_character(),
+                                               col_character(),
+                                               col_double(),
+                                               col_character()))
+
+# parsing issue fix:  day (one row has extra ,)
+da_data <- da_data %>% 
+  mutate(day = str_remove(day, ",") %>% as.numeric(.))
+
+head(da_data)
+```
+
+# Check Distributions
+
+### Numerics:
+Handle these like numeric categoricals
+```{r num-dist, results='hold'}
+num_vars <- da_data %>% select_if(is.numeric) %>% names
+
+dist_plot <- function(df, x){
+  
+  x <- enquo(x)
+  
+  ggplot(df) + 
+    geom_histogram(aes(!!x), binwidth = 1) +
+    theme_minimal()
+}
+
+plots <- da_data %>% 
+  map_if(is.numeric, function(var) dist_plot(da_data, var)) %>% 
+  .[num_vars]
+  
+print(
+  map(seq_along(plots), 
+      function(i) {
+        plots[[i]] + 
+        labs(title = paste0("Distribution of ", names(plots[i])),
+             x = names(plots[i]))
+      }))
+```
+
+### Words:
+These will need to be handled like natural language
+```{r word-dist}
+chr_vars <- da_data %>% select_if(is.character) %>% names
+
+
+```
+
+# Data Cleaning
+
+```{r data-clean}
+
+```
+
+
+# Data Mining
+
+```{r data-mine}
+random_sample <- da_data %>% 
+  mutate(row_id = row_number()) %>% 
+  filter(row_id %in% sample(x = nrow(da_data), size = 50, replace = F))
+```
