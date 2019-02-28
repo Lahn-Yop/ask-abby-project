@@ -4,8 +4,6 @@ output:
   html_document:
     theme: readable
     df_print: paged
-  html_notebook:
-    theme: readable
 ---
 
 # Setup
@@ -17,6 +15,7 @@ pacman::p_load(tidyverse, tidytext)
 ```{r data-pull}
 data_url <- "https://raw.githubusercontent.com/the-pudding/data/master/dearabby/raw_da_qs.csv"
 
+# Specify column types
 da_data <- read_csv(data_url, col_types = list(col_double(),
                                                col_double(),
                                                col_character(),
@@ -25,9 +24,10 @@ da_data <- read_csv(data_url, col_types = list(col_double(),
                                                col_double(),
                                                col_character()))
 
-# parsing issue fix:  day (one row has extra ,)
+# Parsing issue fix:  day (one row has extra ,)
 da_data <- da_data %>% 
-  mutate(day = str_remove(day, ",") %>% as.numeric(.))
+  mutate(day = str_remove(day, ",") %>% as.numeric(.),
+         decade = year - (year %% 10))  # Also build decade cat
 
 head(da_data)
 ```
@@ -37,8 +37,10 @@ head(da_data)
 ### Numerics:
 Handle these like numeric categoricals
 ```{r num-dist, results='hold'}
+# Identify numeric cols
 num_vars <- da_data %>% select_if(is.numeric) %>% names
 
+# Basic distribution plotting helper
 dist_plot <- function(df, x){
   
   x <- enquo(x)
@@ -48,10 +50,12 @@ dist_plot <- function(df, x){
     theme_minimal()
 }
 
+# Build plots in loop
 plots <- da_data %>% 
   map_if(is.numeric, function(var) dist_plot(da_data, var)) %>% 
   .[num_vars]
   
+# Print resulting plots
 print(
   map(seq_along(plots), 
       function(i) {
@@ -64,9 +68,40 @@ print(
 ### Words:
 These will need to be handled like natural language
 ```{r word-dist}
+# Identify potential text cols
 chr_vars <- da_data %>% select_if(is.character) %>% names
 
+# Tokenize question data
+tokened_data <- 
+  da_data %>% 
+  select(-url, -title) %>% 
+  mutate(id = row_number()) %>% 
+  unnest_tokens(output = "word", input = "question_only") %>% 
+  anti_join(stop_words %>% filter(lexicon == "SMART"), by = "word") %>% 
+  mutate(lemmas = textstem::lemmatize_words(word))
 
+# Eventually get these using tf-idf or similar metrics
+boring_lemmas <- c("year", "abby")
+
+# Count lemmas by decade
+decade_counts <- 
+  tokened_data %>% 
+  count(decade, lemmas) %>% 
+  filter(!lemmas %in% boring_lemmas) %>%
+  arrange(decade, desc(n)) %>% 
+  group_by(decade) %>% 
+  slice(1:10) %>% 
+  ungroup
+
+# Summarize findings at high level
+decade_counts %>% 
+  mutate(decade = as_factor(as.character(decade)),
+         lemmas = as_factor(lemmas) %>% fct_rev) %>% 
+  ggplot(aes(x = lemmas, y = n)) +
+  geom_col(aes(fill = decade), show.legend = F) +
+  coord_flip() +
+  facet_wrap(facets = "decade", scales = "free") +
+  labs(title = "Top 10 Lemmas By Decade")
 ```
 
 # Data Cleaning
