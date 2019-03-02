@@ -9,10 +9,10 @@ pacman::p_load(ggplot2, extrafont)
 # Colors ------------------------------------------------------------------
 
 
-lanyop_colors <- c(violet = '#7b3294', 
-                   lavendar = '#c2a5cf',
-                   jade = '#a6dba0',
-                   green = '#008837')
+lanyop_colors <- c(light_blue = '#a6cee3',
+                   blue = '#1f78b4',
+                   light_green = '#b2df8a',
+                   green = '#33a02c')
 
 #' Function to extract lanyop colors as hex codes
 #'
@@ -33,7 +33,7 @@ lanyop_cols <- function(...) {
 
 lanyop_palettes <- list(
   `all` = lanyop_cols(),
-  `two` = lanyop_cols("violet", "green")
+  `two` = lanyop_cols("light_blue", "green")
 )
 
 
@@ -84,28 +84,27 @@ theme_lanyop <- function(font_size = 15, line_size = 0.6, rect_size = 0.6, ...){
         plot.margin = margin(0.25, 0, 0.25, 0, "lines"),
         plot.title = element_text(face = "bold", 
                                   size = rel(1.15),
-                                  color = "dodgerblue4", 
+                                  color = "#0c324c", 
                                   hjust = 0, 
-                                  margin = margin(0, 0, 0.2, 0, "lines")), 
+                                  margin = margin(0, 0, 0.4, 0, "lines")), 
         plot.subtitle = element_text(face = "italic", 
                                      size = rel(1), 
-                                     color = "dodgerblue4", 
+                                     color = "#0c324c", 
                                      hjust = 0, 
                                      margin = margin(0.2, 0, 0.4, 0, "lines")),
         axis.title = element_text(size = rel(0.75), 
-                                  color = "dodgerblue4"), 
+                                  color = "#0c324c"), 
         axis.text = element_text(size = rel(0.6), color = "gray30"),
         axis.line = element_line(color = "gray25"),
         axis.ticks = element_blank(), 
         legend.title = element_text(size = rel(0.75), 
                                     face = "bold",
-                                    color = "dodgerblue4"),
+                                    color = "#0c324c"),
         legend.text = element_text(size = rel(0.6),
                                    color = "gray30"), 
         strip.text = element_text(size = rel(0.8), 
-                                  color = "dodgerblue4"),
-        strip.background = element_rect(fill ="gray90"),
+                                  color = "#0c324c"),
+        strip.background = element_rect(fill ="gray95", 
+                                        linetype = "blank"),
         ...)
 }
-
-
