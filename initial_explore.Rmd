@@ -1,5 +1,5 @@
 ---
-title: "R Notebook"
+title: "Ask Abby Analysis"
 output:
   html_document:
     theme: readable
@@ -10,6 +10,7 @@ output:
 
 ```{r setup, results='hide'}
 pacman::p_load(tidyverse, tidytext)
+source("theme_lanyop.R")
 ```
 
 ```{r data-pull}
@@ -36,7 +37,7 @@ head(da_data)
 
 ### Numerics:
 Handle these like numeric categoricals
-```{r num-dist, results='hold'}
+```{r num-dist, results='hold', warning=FALSE, echo=FALSE}
 # Identify numeric cols
 num_vars <- da_data %>% select_if(is.numeric) %>% names
 
@@ -47,7 +48,7 @@ dist_plot <- function(df, x){
   
   ggplot(df) + 
     geom_histogram(aes(!!x), binwidth = 1) +
-    theme_minimal()
+    theme_lanyop()
 }
 
 # Build plots in loop
@@ -99,9 +100,11 @@ decade_counts %>%
          lemmas = as_factor(lemmas) %>% fct_rev) %>% 
   ggplot(aes(x = lemmas, y = n)) +
   geom_col(aes(fill = decade), show.legend = F) +
+  scale_fill_manual(values = lanyop_pal("all")(4)) +
   coord_flip() +
   facet_wrap(facets = "decade", scales = "free") +
-  labs(title = "Top 10 Lemmas By Decade")
+  labs(title = "Top 10 Lemmas By Decade") +
+  theme_lanyop()
 ```
 
 # Data Cleaning
