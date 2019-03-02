@@ -31,14 +31,30 @@ da_data <- da_data %>%
   mutate(day = str_remove(day, ",") %>% as.numeric(.),
          decade = year - (year %% 10))  # Also build decade cat
 
-head(da_data)
+# Save this as a feather file (in case we want it later)
+write_feather(da_data, "dear_abby.feather")
 ```
+
+We're going to use the data pre-pulled as a feather file.
+```{r data-load}
+# Data was compressed to zip
+unzip(zipfile = here::here("dear_abby.zip"), list = T)
+
+# Unzip and read data
+unzip(zipfile = here::here("dear_abby.zip"), exdir = here::here())
+da_data <- read_feather("dear_abby.feather")
+
+# Clean up
+unlink(x = "dear_abby.feather")
+```
+
 
 # Check Distributions
 
 ### Numerics:
-Handle these like numeric categoricals
-```{r num-dist, results='hold', warning=FALSE, echo=FALSE}
+
+We want to see the distribution of each of our numeric variables.  We'll be handling these like numeric categoricals.
+```{r num-dist, results='hide', warning=FALSE}
 # Identify numeric cols
 num_vars <- da_data %>% select_if(is.numeric) %>% names
 
@@ -48,7 +64,7 @@ dist_plot <- function(df, x){
   x <- enquo(x)
   
   ggplot(df) + 
-    geom_histogram(aes(!!x), binwidth = 1) +
+    geom_histogram(aes(!!x), fill = lanyop_cols("blue"), binwidth = 1) +
     theme_lanyop()
 }
 
@@ -56,7 +72,10 @@ dist_plot <- function(df, x){
 plots <- da_data %>% 
   map_if(is.numeric, function(var) dist_plot(da_data, var)) %>% 
   .[num_vars]
-  
+```
+
+Now we can print all of them at once.
+```{r num-plots, results='hold'}
 # Print resulting plots
 print(
   map(seq_along(plots), 
@@ -67,13 +86,11 @@ print(
       }))
 ```
 
-### Words:
-These will need to be handled like natural language
-```{r word-dist}
-# Identify potential text cols
-chr_vars <- da_data %>% select_if(is.character) %>% names
+### Text:
 
-# Tokenize question data
+The text will need to be handled like natural language.  We'll be use `tidytext` to drill into the question data.
+```{r word-dist}
+# Tokenize question data into lemmas
 tokened_data <- 
   da_data %>% 
   select(-url, -title) %>% 
@@ -82,21 +99,36 @@ tokened_data <-
   anti_join(stop_words %>% filter(lexicon == "SMART"), by = "word") %>% 
   mutate(lemmas = textstem::lemmatize_words(word))
 
-# Eventually get these using tf-idf or similar metrics
-boring_lemmas <- c("year", "abby")
+# Bind tf-idf metric
+metric_data <- tokened_data %>% 
+  count(id, lemmas) %>% 
+  bind_tf_idf(term = "lemmas", document = "id", n = "n" ) %>% 
+  group_by(lemmas) %>% 
+  summarize(tf_idf = mean(tf_idf),
+            total  = sum(n)) %>% 
+  ungroup 
 
-# Count lemmas by decade
+# Use tf-idf to get common lemmas
+common_lemmas <- metric_data %>% 
+  filter(tf_idf < 0.5) %>% 
+  arrange(-total) %>% 
+  pull(lemmas)
+
+# Count all lemmas by decade
 decade_counts <- 
   tokened_data %>% 
   count(decade, lemmas) %>% 
-  filter(!lemmas %in% boring_lemmas) %>%
-  arrange(decade, desc(n)) %>% 
+  filter(!lemmas %in% c("abby", "year")) %>%
+  arrange(decade, desc(n))
+```
+
+Let's see which lemmas are the most used in letters in each decade.
+```{r dec-1}
+# Top 10 by decade
+decade_counts %>% 
   group_by(decade) %>% 
   slice(1:10) %>% 
-  ungroup
-
-# Summarize findings at high level
-decade_counts %>% 
+  ungroup %>% 
   mutate(decade = as_factor(as.character(decade)),
          lemmas = as_factor(lemmas) %>% fct_rev) %>% 
   ggplot(aes(x = lemmas, y = n)) +
@@ -105,6 +137,26 @@ decade_counts %>%
   coord_flip() +
   facet_wrap(facets = "decade", scales = "free") +
   labs(title = "Top 10 Lemmas By Decade") +
+  theme_lanyop()
+```
+
+Now let's use the `common_lemmas` we found to filter down to a more unique top ten for each decade.
+```{r dec-2}
+# Top 10 by decade (filtered)
+decade_counts %>% 
+  filter(!lemmas %in% common_lemmas[1:100]) %>%
+  group_by(decade) %>% 
+  slice(1:10) %>% 
+  ungroup %>% 
+  mutate(decade = as_factor(as.character(decade)),
+         lemmas = as_factor(lemmas) %>% fct_rev) %>% 
+  ggplot(aes(x = lemmas, y = n)) +
+  geom_col(aes(fill = decade), show.legend = F) +
+  scale_fill_manual(values = lanyop_pal("all")(4)) +
+  coord_flip() +
+  facet_wrap(facets = "decade", scales = "free") +
+  labs(title = "Top 10 Lemmas By Decade (filtered for uniqueness)", 
+       subtitle = "Group avg tf-idf > 0.5)") +
   theme_lanyop()
 ```
 
