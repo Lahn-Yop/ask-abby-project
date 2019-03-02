@@ -9,7 +9,9 @@ output:
 # Setup
 
 ```{r setup, results='hide'}
-pacman::p_load(tidyverse, tidytext, feather)
+knitr::opts_chunk$set(echo = TRUE, results = 'hold', warning = FALSE)
+
+pacman::p_load(tidyverse, tidytext, feather, here)
 source("theme_lanyop.R")
 ```
 
@@ -41,7 +43,7 @@ We're going to use the data pre-pulled as a feather file.
 unzip(zipfile = here::here("dear_abby.zip"), list = T)
 
 # Unzip and read data
-unzip(zipfile = here::here("dear_abby.zip"), exdir = here::here())
+unzip(zipfile = here("dear_abby.zip"), exdir = here())
 da_data <- read_feather("dear_abby.feather")
 
 # Clean up
@@ -156,7 +158,7 @@ decade_counts %>%
   coord_flip() +
   facet_wrap(facets = "decade", scales = "free") +
   labs(title = "Top 10 Lemmas By Decade (filtered for uniqueness)", 
-       subtitle = "Group avg tf-idf > 0.5)") +
+       subtitle = "Group avg tf-idf > 0.5") +
   theme_lanyop()
 ```
 
