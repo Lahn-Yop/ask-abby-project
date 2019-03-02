@@ -9,11 +9,12 @@ output:
 # Setup
 
 ```{r setup, results='hide'}
-pacman::p_load(tidyverse, tidytext)
+pacman::p_load(tidyverse, tidytext, feather)
 source("theme_lanyop.R")
 ```
 
-```{r data-pull}
+The data is scraped from historic 'Dear Abby' column letters.  It's currently on GitHub.  This is how you'd get it straight from the source.
+```{r data-pull, eval=FALSE}
 data_url <- "https://raw.githubusercontent.com/the-pudding/data/master/dearabby/raw_da_qs.csv"
 
 # Specify column types
