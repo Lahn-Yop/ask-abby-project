@@ -9,7 +9,7 @@ output:
 # Setup
 
 ```{r setup, results='hide'}
-knitr::opts_chunk$set(echo = TRUE, results = 'hold', warning = FALSE)
+knitr::opts_chunk$set(echo = TRUE, results = 'hold', warning = FALSE, fig.width = 12)
 
 pacman::p_load(tidyverse, tidytext, feather, here)
 source("theme_lanyop.R")
@@ -38,7 +38,7 @@ write_feather(da_data, "dear_abby.feather")
 ```
 
 We're going to use the data pre-pulled as a feather file.
-```{r data-load}
+```{r data-load, echo=FALSE}
 # Data was compressed to zip
 unzip(zipfile = here::here("dear_abby.zip"), list = T)
 
@@ -91,18 +91,35 @@ print(
 ### Text:
 
 The text will need to be handled like natural language.  We'll be use `tidytext` to drill into the question data.
-```{r word-dist}
-# Tokenize question data into lemmas
-tokened_data <- 
+```{r}
+# Remove generic text at end of early letters
+da_data <- da_data %>% 
+  mutate(question_only = str_remove(question_only, "for abby's (.+)|to abby (.+)|problems\\? (.+)"))
+
+# Tokenize question data into words and remove stop words
+clean_tokens <- 
   da_data %>% 
   select(-url, -title) %>% 
   mutate(id = row_number()) %>% 
   unnest_tokens(output = "word", input = "question_only") %>% 
-  anti_join(stop_words %>% filter(lexicon == "SMART"), by = "word") %>% 
+  anti_join(stop_words %>% 
+              filter(lexicon == "SMART") %>% 
+              bind_rows(data.frame(lexicon = "", 
+                                   word = c(as.character(1:1000), "copyright", "abby", "year"), 
+                                   stringsAsFactors = F)),
+            by = "word")
+```
+
+#### Lemma Analysis:
+
+Let's dig into the lemmas (related word groupings) for our text by decade and year.
+```{r}
+# Get lemmas
+lemma_data <- clean_tokens %>% 
   mutate(lemmas = textstem::lemmatize_words(word))
 
 # Bind tf-idf metric
-metric_data <- tokened_data %>% 
+metric_data <- lemma_data %>% 
   count(id, lemmas) %>% 
   bind_tf_idf(term = "lemmas", document = "id", n = "n" ) %>% 
   group_by(lemmas) %>% 
