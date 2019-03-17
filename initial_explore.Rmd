@@ -133,24 +133,34 @@ common_lemmas <- metric_data %>%
   arrange(-total) %>% 
   pull(lemmas)
 
-# Count all lemmas by decade
-decade_counts <- 
-  tokened_data %>% 
-  count(decade, lemmas) %>% 
-  filter(!lemmas %in% c("abby", "year")) %>%
-  arrange(decade, desc(n))
+# Count all lemmas over time
+lemmas_by_time <- 
+  lemma_data %>% 
+  group_by(year, decade, lemmas) %>% 
+  summarize(year_counts = n()) %>% 
+  ungroup %>% 
+  group_by(decade, lemmas) %>% 
+  mutate(decade_counts = sum(year_counts)) %>% 
+  ungroup %>% 
+  arrange(year, -year_counts)
 ```
 
 Let's see which lemmas are the most used in letters in each decade.
-```{r dec-1}
-# Top 10 by decade
-decade_counts %>% 
+```{r}
+# Get decade only counts 
+lemmas_by_decade <- lemmas_by_time %>% 
+  select(decade, lemmas, decade_counts) %>% 
+  distinct %>% 
+  arrange(decade, -decade_counts)
+
+# Plot top 10 by decade
+lemmas_by_decade %>% 
   group_by(decade) %>% 
   slice(1:10) %>% 
   ungroup %>% 
   mutate(decade = as_factor(as.character(decade)),
          lemmas = as_factor(lemmas) %>% fct_rev) %>% 
-  ggplot(aes(x = lemmas, y = n)) +
+  ggplot(aes(x = lemmas, y = decade_counts)) +
   geom_col(aes(fill = decade), show.legend = F) +
   scale_fill_manual(values = lanyop_pal("all")(4)) +
   coord_flip() +
@@ -160,16 +170,17 @@ decade_counts %>%
 ```
 
 Now let's use the `common_lemmas` we found to filter down to a more unique top ten for each decade.
-```{r dec-2}
+```{r}
 # Top 10 by decade (filtered)
-decade_counts %>% 
+lemmas_by_decade %>% 
   filter(!lemmas %in% common_lemmas[1:100]) %>%
+  arrange(decade, -decade_counts) %>% 
   group_by(decade) %>% 
   slice(1:10) %>% 
   ungroup %>% 
   mutate(decade = as_factor(as.character(decade)),
          lemmas = as_factor(lemmas) %>% fct_rev) %>% 
-  ggplot(aes(x = lemmas, y = n)) +
+  ggplot(aes(x = lemmas, y = decade_counts)) +
   geom_col(aes(fill = decade), show.legend = F) +
   scale_fill_manual(values = lanyop_pal("all")(4)) +
   coord_flip() +
@@ -178,6 +189,102 @@ decade_counts %>%
        subtitle = "Group avg tf-idf > 0.5") +
   theme_lanyop()
 ```
+
+Now let's see how lemmas shared by all four decades usage changes over time.
+```{r}
+# Find top 8 lemmas from the overall set
+ovr_lemmas <- lemmas_by_decade %>% 
+  filter(!lemmas %in% common_lemmas[1:100]) %>% 
+  group_by(lemmas) %>% 
+  summarize(total = sum(decade_counts)) %>% 
+  ungroup %>% 
+  arrange(-total) %>% 
+  slice(1:8) %>% 
+  pull(lemmas)
+
+# Plot percent of total uses by year
+lemmas_by_time %>% 
+  filter(lemmas %in% ovr_lemmas) %>% 
+  group_by(lemmas) %>%
+  mutate(ovr_counts = sum(year_counts)) %>% 
+  ungroup %>% 
+  ggplot(aes(year, year_counts / ovr_counts)) +
+  geom_point() +
+  geom_smooth(method = "loess") +
+  facet_wrap(~ lemmas, scales = "free_y", ncol = 4) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  ylab("% frequency of lemma by year") +
+  theme_lanyop()
+```
+
+The usage of these share a similar pattern in most cases, where there's a dip in usage in 1990's.  Are there just less letters from then?
+```{r}
+# Plot percent of letters by year
+da_data %>% 
+  count(year) %>% 
+  mutate(total = sum(n),
+         percent = n / total) %>% 
+  ggplot(aes(year, percent)) +
+  geom_point() +
+  geom_smooth(method = "loess") +
+  labs(title = "Percent of Total Letters Contributed By Year") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  theme_lanyop()
+```
+
+It appears that there are indeed less letters from the mid 1990's!  So then, which of those top 6 lemmas differ significantly from this pattern?
+
+```{r}
+# how to check this?
+```
+
+
+#### n-gram Analysis:
+
+We should have enough data to get back interesting lemmas by year.
+```{r}
+# Get bigrams from the data
+bigram_data <- 
+  clean_tokens %>%
+  filter(!grepl("permission|owner|prohibited|reproduc", word)) %>%   # remove copyright text
+  group_by(year, decade, id) %>%  
+  summarize(clean_letter = paste0(word, collapse = " ")) %>% 
+  ungroup %>% 
+  unnest_tokens(output = "bigrams", token = "ngrams", n = 2, input = "clean_letter")
+  
+# Get bigrams over time
+bigrams_by_time <- 
+  bigram_data %>% 
+  group_by(year, decade, bigrams) %>% 
+  summarize(year_counts = n()) %>% 
+  ungroup %>% 
+  group_by(decade, bigrams) %>% 
+  mutate(decade_counts = sum(year_counts)) %>% 
+  ungroup %>% 
+  arrange(year, -year_counts)
+```
+
+Now let's plot the top 10 bigrams over time just like we did with lemmas.
+```{r}
+# Plot top 10 bigrams by decade
+bigrams_by_time %>% 
+  select(decade, bigrams, decade_counts) %>% 
+  distinct %>% 
+  arrange(decade, -decade_counts) %>% 
+  group_by(decade) %>% 
+  slice(1:10) %>% 
+  ungroup %>% 
+  mutate(decade = as_factor(as.character(decade)),
+         bigrams = as_factor(bigrams) %>% fct_rev) %>% 
+  ggplot(aes(x = bigrams, y = decade_counts)) +
+  geom_col(aes(fill = decade), show.legend = F) +
+  scale_fill_manual(values = lanyop_pal("all")(4)) +
+  coord_flip() +
+  facet_wrap(facets = "decade", scales = "free") +
+  labs(title = "Top 10 bigrams By Decade") +
+  theme_lanyop()
+```
+
 
 # Data Cleaning
 
@@ -188,8 +295,9 @@ decade_counts %>%
 
 # Data Mining
 
+Get 150 random letters per decade.
 ```{r data-mine}
 random_sample <- da_data %>% 
-  mutate(row_id = row_number()) %>% 
+  mutate(row_id = row_number(decade)) %>% 
   filter(row_id %in% sample(x = nrow(da_data), size = 50, replace = F))
 ```
