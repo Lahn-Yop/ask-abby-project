@@ -7,8 +7,19 @@ source("pull.R")
 # Cleaning Original --------------------------------------------------------
 
 # Remove generic text at end of early letters
-da_data <- da_data %>% 
-  mutate(question_only = str_remove(question_only, "for abby's (.+)|to abby (.+)|problems\\? (.+)"))
+ad_text <- c("getting married\\? ",
+             "for abby's booklet",
+             "problems\\? ",
+             "do you hate to write letters because you don't know what to say\\?",
+             "is your social life in a slump\\? ",
+             "want your phone to ring\\? ")
+
+da_data <- raw_data %>% 
+  mutate(question_only = trimws(question_only, "both"),
+         dup = if_else(duplicated(question_only), 1, 0)) %>% 
+  filter(dup != 1) %>% 
+  select(-dup) %>% 
+  mutate(question_only = str_remove(question_only, paste0(paste0(ad_text, collapse = "(.+)|"), "(.+)")))
 
 
 # Create Tokens -----------------------------------------------------------
@@ -23,9 +34,8 @@ abby_stop_words <-
                     "copyright", 
                     "abby", 
                     "year",
-                    "permission",
-                    "owner",
-                    "prohibited")))
+                    "years",
+                    "dear")))
 
 # Tokenize question data into words and remove stop words
 clean_tokens <- 

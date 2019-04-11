@@ -34,12 +34,9 @@ pacman::p_load(tidyverse, tidytext, feather, here)
 
 # We're going to use the data pre-pulled as a feather file.
 
-# Data was compressed to zip
-unzip(zipfile = here::here("dear_abby.zip"), list = T)
-
 # Unzip and read data
 unzip(zipfile = here("data", "dear_abby.zip"), exdir = here())
-da_data <- read_feather("dear_abby.feather")
+raw_data <- read_feather("dear_abby.feather")
 
 # Clean up
 unlink(x = "dear_abby.feather")
