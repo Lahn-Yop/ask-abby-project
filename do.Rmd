@@ -6,50 +6,11 @@ output:
     df_print: paged
 ---
 
-# Setup
-
-```{r setup, results='hide'}
+```{r setup, echo=FALSE}
 knitr::opts_chunk$set(echo = TRUE, results = 'hold', warning = FALSE, fig.width = 12)
-
-pacman::p_load(tidyverse, tidytext, feather, here)
+source("clean.R")
 source("theme_lanyop.R")
 ```
-
-The data is scraped from historic 'Dear Abby' column letters.  It's currently on GitHub.  This is how you'd get it straight from the source.
-```{r data-pull, eval=FALSE}
-data_url <- "https://raw.githubusercontent.com/the-pudding/data/master/dearabby/raw_da_qs.csv"
-
-# Specify column types
-da_data <- read_csv(data_url, col_types = list(col_double(),
-                                               col_double(),
-                                               col_character(),
-                                               col_character(),
-                                               col_character(),
-                                               col_double(),
-                                               col_character()))
-
-# Parsing issue fix:  day (one row has extra ,)
-da_data <- da_data %>% 
-  mutate(day = str_remove(day, ",") %>% as.numeric(.),
-         decade = year - (year %% 10))  # Also build decade cat
-
-# Save this as a feather file (in case we want it later)
-write_feather(da_data, "dear_abby.feather")
-```
-
-We're going to use the data pre-pulled as a feather file.
-```{r data-load, echo=FALSE}
-# Data was compressed to zip
-unzip(zipfile = here::here("dear_abby.zip"), list = T)
-
-# Unzip and read data
-unzip(zipfile = here("dear_abby.zip"), exdir = here())
-da_data <- read_feather("dear_abby.feather")
-
-# Clean up
-unlink(x = "dear_abby.feather")
-```
-
 
 # Check Distributions
 
@@ -59,16 +20,6 @@ We want to see the distribution of each of our numeric variables.  We'll be hand
 ```{r num-dist, results='hide', warning=FALSE}
 # Identify numeric cols
 num_vars <- da_data %>% select_if(is.numeric) %>% names
-
-# Basic distribution plotting helper
-dist_plot <- function(df, x){
-  
-  x <- enquo(x)
-  
-  ggplot(df) + 
-    geom_histogram(aes(!!x), fill = lanyop_cols("blue"), binwidth = 1) +
-    theme_lanyop()
-}
 
 # Build plots in loop
 plots <- da_data %>% 
@@ -91,33 +42,11 @@ print(
 ### Text:
 
 The text will need to be handled like natural language.  We'll be use `tidytext` to drill into the question data.
-```{r}
-# Remove generic text at end of early letters
-da_data <- da_data %>% 
-  mutate(question_only = str_remove(question_only, "for abby's (.+)|to abby (.+)|problems\\? (.+)"))
-
-# Tokenize question data into words and remove stop words
-clean_tokens <- 
-  da_data %>% 
-  select(-url, -title) %>% 
-  mutate(id = row_number()) %>% 
-  unnest_tokens(output = "word", input = "question_only") %>% 
-  anti_join(stop_words %>% 
-              filter(lexicon == "SMART") %>% 
-              bind_rows(data.frame(lexicon = "", 
-                                   word = c(as.character(1:1000), "copyright", "abby", "year"), 
-                                   stringsAsFactors = F)),
-            by = "word")
-```
 
 #### Lemma Analysis:
 
 Let's dig into the lemmas (related word groupings) for our text by decade and year.
-```{r}
-# Get lemmas
-lemma_data <- clean_tokens %>% 
-  mutate(lemmas = textstem::lemmatize_words(word))
-
+```{r txt-lemmas}
 # Bind tf-idf metric
 metric_data <- lemma_data %>% 
   count(id, lemmas) %>% 
@@ -146,7 +75,7 @@ lemmas_by_time <-
 ```
 
 Let's see which lemmas are the most used in letters in each decade.
-```{r}
+```{r txt-}
 # Get decade only counts 
 lemmas_by_decade <- lemmas_by_time %>% 
   select(decade, lemmas, decade_counts) %>% 
@@ -193,7 +122,7 @@ lemmas_by_decade %>%
 Now let's see how lemmas shared by all four decades usage changes over time.
 ```{r}
 # Find top 8 lemmas from the overall set
-ovr_lemmas <- lemmas_by_decade %>% 
+top_lemmas <- lemmas_by_decade %>% 
   filter(!lemmas %in% common_lemmas[1:100]) %>% 
   group_by(lemmas) %>% 
   summarize(total = sum(decade_counts)) %>% 
@@ -204,7 +133,7 @@ ovr_lemmas <- lemmas_by_decade %>%
 
 # Plot percent of total uses by year
 lemmas_by_time %>% 
-  filter(lemmas %in% ovr_lemmas) %>% 
+  filter(lemmas %in% top_lemmas) %>% 
   group_by(lemmas) %>%
   mutate(ovr_counts = sum(year_counts)) %>% 
   ungroup %>% 
@@ -220,11 +149,14 @@ lemmas_by_time %>%
 The usage of these share a similar pattern in most cases, where there's a dip in usage in 1990's.  Are there just less letters from then?
 ```{r}
 # Plot percent of letters by year
-da_data %>% 
+letters_per_year <- 
+  da_data %>% 
   count(year) %>% 
-  mutate(total = sum(n),
-         percent = n / total) %>% 
-  ggplot(aes(year, percent)) +
+  mutate(total_letters = sum(n),
+         percent_total = n / total_letters)
+
+letters_per_year %>% 
+  ggplot(aes(year, percent_total)) +
   geom_point() +
   geom_smooth(method = "loess") +
   labs(title = "Percent of Total Letters Contributed By Year") +
@@ -233,9 +165,23 @@ da_data %>%
 ```
 
 It appears that there are indeed less letters from the mid 1990's!  So then, which of those top 6 lemmas differ significantly from this pattern?
-
 ```{r}
-# how to check this?
+# Find percent of letters containing word relative to number of letters in each time period
+lemmas_by_time %>% 
+  filter(lemmas %in% top_lemmas) %>%
+  # group_by(lemmas) %>%
+  # mutate(ovr_counts = sum(year_counts)) %>% 
+  # ungroup %>% 
+  left_join(letters_per_year, by = "year") %>% 
+  mutate(rel_freq = year_counts / total_letters)
+  
+  ggplot(aes(year, rel_freq)) +
+  geom_point() +
+  geom_smooth(method = "loess") +
+  facet_wrap(~ lemmas, scales = "free_y", ncol = 4) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  ylab("% frequency of lemma by year") +
+  theme_lanyop()
 ```
 
 
@@ -243,15 +189,6 @@ It appears that there are indeed less letters from the mid 1990's!  So then, whi
 
 We should have enough data to get back interesting lemmas by year.
 ```{r}
-# Get bigrams from the data
-bigram_data <- 
-  clean_tokens %>%
-  filter(!grepl("permission|owner|prohibited|reproduc", word)) %>%   # remove copyright text
-  group_by(year, decade, id) %>%  
-  summarize(clean_letter = paste0(word, collapse = " ")) %>% 
-  ungroup %>% 
-  unnest_tokens(output = "bigrams", token = "ngrams", n = 2, input = "clean_letter")
-  
 # Get bigrams over time
 bigrams_by_time <- 
   bigram_data %>% 
@@ -283,21 +220,4 @@ bigrams_by_time %>%
   facet_wrap(facets = "decade", scales = "free") +
   labs(title = "Top 10 bigrams By Decade") +
   theme_lanyop()
-```
-
-
-# Data Cleaning
-
-```{r data-clean}
-
-```
-
-
-# Data Mining
-
-Get 150 random letters per decade.
-```{r data-mine}
-random_sample <- da_data %>% 
-  mutate(row_id = row_number(decade)) %>% 
-  filter(row_id %in% sample(x = nrow(da_data), size = 50, replace = F))
 ```
