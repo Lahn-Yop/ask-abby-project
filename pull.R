@@ -1,7 +1,7 @@
 
 # DATA PULL #
 
-pacman::p_load(tidyverse, tidytext, feather, here)
+pacman::p_load(tidyverse, tidytext, textstem, feather, here)
 
 
 # Direct Download ---------------------------------------------------------

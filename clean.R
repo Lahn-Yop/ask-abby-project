@@ -50,7 +50,7 @@ clean_tokens <-
 
 # Get lemmas using clean_tokens
 lemma_data <- clean_tokens %>% 
-  mutate(lemmas = textstem::lemmatize_words(word))
+  mutate(lemmas = lemmatize_words(word))
 
   
 # Get bigrams using clean_tokens
